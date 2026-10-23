@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a"><title>DropZone — Free Fire Tournaments</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={theme:{extend:{colors:{ink:'#0f172a',neon:'#f97316',violet:'#8b5cf6',live:'#22c55e'}}}}</script>
+<style>
+body{background:radial-gradient(ellipse at 15% 0%,#312e8150,transparent 38%),#0f172a;color:#e2e8f0;font-family:Inter,ui-sans-serif,system-ui}
+.glass{background:#111c31cc;border:1px solid #334155a8;backdrop-filter:blur(16px)}.glow{box-shadow:0 0 24px #f9731624}
+.btn{background:linear-gradient(110deg,#f97316,#ea580c);color:white;font-weight:700;border-radius:12px;padding:.7rem 1rem}.muted{color:#94a3b8}
+input,select,textarea{background:#0b1220!important;border:1px solid #334155!important;border-radius:10px;padding:.7rem;color:#e2e8f0;width:100%}
+.seat{min-height:76px;border:1px solid #334155;background:#111c31;border-radius:12px;padding:8px;text-align:center;font-size:12px}.seat.open{border-color:#475569}.seat.mine{border-color:#f97316;background:#43140780}.seat.taken{border-color:#475569;opacity:.8}.seat:disabled{cursor:not-allowed}
+</style>
+</head>
+<body class="min-h-screen">
+<header class="sticky top-0 z-30 border-b border-slate-700/70 bg-ink/90 backdrop-blur-xl">
+ <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+  <a href="#" class="flex items-center gap-2 font-black text-xl"><span class="grid place-items-center w-9 h-9 rounded-xl bg-neon text-white">DZ</span> DROP<span class="text-neon">ZONE</span></a>
+  <div class="flex items-center gap-2"><button id="walletBtn" class="glass rounded-xl px-3 py-2 text-sm">৳ <span id="wallet">—</span> <span class="text-neon">+</span></button><button id="authBtn" class="btn text-sm">Sign in</button></div>
+ </div>
+</header>
+<main class="max-w-7xl mx-auto px-4 pb-28">
+ <div id="ticker" class="mt-4 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-sm"><span class="text-violet-300 font-bold">NOTICE</span> <span id="tickerText">Loading tournament announcements…</span></div>
+ <section class="grid lg:grid-cols-[1.5fr_1fr] gap-5 mt-5">
+  <div id="hero" class="relative min-h-56 rounded-3xl overflow-hidden border border-slate-700 glow bg-gradient-to-br from-violet-900 via-slate-900 to-orange-950 p-7 flex flex-col justify-end">
+   <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/25 to-transparent"></div><div class="relative"><p class="text-neon uppercase tracking-[.25em] text-xs font-bold">Your next Booyah starts here</p><h1 class="text-3xl sm:text-5xl font-black mt-3 max-w-xl">DROP IN.<br><span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-violet-400">RISE UP.</span></h1></div>
+  </div>
+  <div class="glass rounded-3xl p-6 flex flex-col justify-between"><div><p class="muted text-sm">PLAYER PROFILE</p><div class="flex items-center gap-3 mt-4"><img id="avatar" class="w-14 h-14 rounded-2xl object-cover bg-slate-800" src="https://placehold.co/100x100/1e293b/ffffff?text=FF" alt="Avatar"><div><h2 id="playerName" class="font-bold text-lg">Guest Player</h2><p id="playerEmail" class="muted text-xs">Sign in to sync profile</p></div></div></div><button id="profileBtn" class="mt-4 w-full rounded-xl border border-slate-600 py-3 text-sm font-bold">Complete Free Fire Profile →</button></div>
+ </section>
+ <section class="mt-8"><div class="flex items-end justify-between gap-3"><div><p class="text-neon text-xs tracking-[.2em] font-bold">FIND YOUR BATTLE</p><h2 class="text-2xl font-black mt-1">Upcoming Matches</h2></div><span id="matchCount" class="muted text-sm">Loading…</span></div>
+ <div id="matches" class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4"><p class="muted">Loading matches...</p></div></section>
+</main>
+<div id="modal" class="hidden fixed inset-0 z-50 bg-black/70 p-4 grid place-items-center"><div class="glass w-full max-w-lg max-h-[90vh] overflow-auto rounded-2xl p-5"><div class="flex justify-between items-center mb-4"><h2 id="modalTitle" class="font-black text-xl">Details</h2><button id="closeModal" class="text-2xl text-slate-400">×</button></div><div id="modalBody"></div></div></div>
+<div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[60] hidden rounded-xl bg-slate-800 border border-slate-600 px-4 py-3 text-sm"></div>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {getFirestore,doc,getDoc,setDoc,collection,query,getDocs,increment,serverTimestamp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDya0Jd6XkK0db6tDMU-V7xM7dy5gKBk4k",
+  authDomain: "ai-turnament-app.firebaseapp.com",
+  databaseURL: "https://ai-turnament-app-default-rtdb.firebaseio.com",
+  projectId: "ai-turnament-app",
+  storageBucket: "ai-turnament-app.firebasestorage.app",
+  messagingSenderId: "478532172993",
+  appId: "1:478532172993:web:8655f93e5df5d2e8dd6840",
+  measurementId: "G-QBFNQEB0GV"
+};
+
+let app,db,auth,user=null,profile=null,matchesCache=[];
+const $=id=>document.getElementById(id);
+function toast(s){$('toast').textContent=s;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),3000)}
+function modal(title,html){$('modalTitle').textContent=title;$('modalBody').innerHTML=html;$('modal').classList.remove('hidden')}
+function close(){$('modal').classList.add('hidden')}
+$('closeModal').onclick=close;
+
+app=initializeApp(firebaseConfig);
+auth=getAuth(app);
+db=getFirestore(app);
+
+onAuthStateChanged(auth,async u=>{
+  user=u;
+  if(!u){profile=null;$('authBtn').textContent='Sign in';$('playerName').textContent='Guest Player';$('wallet').textContent='—';return}
+  $('authBtn').textContent='Sign out';
+  const r=doc(db,'users',u.uid);
+  let s=await getDoc(r);
+  if(!s.exists()) await setDoc(r,{uid:u.uid,email:u.email||'',displayName:u.displayName||'',ign:'',playerUid:'',wallet:100,createdAt:serverTimestamp()});
+  profile=(await getDoc(r)).data();
+  $('playerName').textContent=profile.ign||profile.displayName||'Player';
+  $('wallet').textContent=Number(profile.wallet||0).toFixed(2);
+  fetchMatches();
+});
+
+$('authBtn').onclick=()=>{
+  if(user){signOut(auth);return}
+  modal('Welcome',`<div class="space-y-3"><button id="googleLogin" class="w-full rounded-xl border border-slate-600 p-3">Continue with Google</button><input id="email" type="email" placeholder="Email"><input id="password" type="password" placeholder="Password"><div class="grid grid-cols-2 gap-2"><button id="register" class="btn">Register</button><button id="login" class="glass rounded-xl">Login</button></div></div>`);
+  $('googleLogin').onclick=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider());close()}catch(e){toast(e.message)}};
+  $('register').onclick=async()=>{try{await createUserWithEmailAndPassword(auth,$('email').value,$('password').value);close()}catch(e){toast(e.message)}};
+  $('login').onclick=async()=>{try{await signInWithEmailAndPassword(auth,$('email').value,$('password').value);close()}catch(e){toast(e.message)}};
+};
+
+$('profileBtn').onclick=()=>{
+  if(!user)return toast('Sign in first.');
+  modal('Free Fire Profile',`<div class="space-y-3"><input id="ign" value="${profile?.ign||''}" placeholder="Your IGN"><input id="playerUid" value="${profile?.playerUid||''}" placeholder="Player UID"><button id="saveProfile" class="btn w-full">Save</button></div>`);
+  $('saveProfile').onclick=async()=>{const ign=$('ign').value.trim(),playerUid=$('playerUid').value.trim();if(!ign||!playerUid)return toast('Fill all fields');await setDoc(doc(db,'users',user.uid),{ign,playerUid},{merge:true});close();toast('Saved')};
+};
+
+async function fetchMatches(){
+  try{
+    const s=await getDocs(collection(db,'matches'));
+    matchesCache=s.docs.map(d=>({id:d.id,...d.data()}));
+    renderMatches();
+  }catch(e){$('matches').innerHTML='<p class="muted">No matches available.</p>'}
+}
+
+function renderMatches(){
+  if(!matchesCache.length){$('matches').innerHTML='<p class="muted">No matches found.</p>';return}
+  $('matches').innerHTML=matchesCache.map(m=>`<div class="glass rounded-2xl p-5"><h3 class="text-lg font-black">${m.title}</h3><p class="muted text-sm mt-1">Fee: ৳${m.entryFee} | Prize: ৳${m.prizePool}</p><button class="btn mt-4 w-full" onclick="joinMatch('${m.id}')">Join Match</button></div>`).join('');
+}
+
+window.joinMatch=async(id)=>{
+  if(!user)return toast('Sign in required.');
+  if(!profile?.ign)return toast('Complete your profile first.');
+  const m=matchesCache.find(x=>x.id===id);
+  if(Number(profile?.wallet||0)<Number(m.entryFee))return toast('Low balance!');
+  if(confirm(`Join match for ৳${m.entryFee}?`)){
+    try{
+      await setDoc(doc(db,`matches/${id}/participants`,user.uid),{uid:user.uid,ign:profile.ign,playerUid:profile.playerUid});
+      toast('Successfully joined!');
+    }catch(e){toast('Failed: '+e.message)}
+  }
+};
+</script>
+</body>
+</html>
